@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.db import models
 
 from . import constants
-from .validators import recipe_cooking_time_validator
+from .validators import value_ge_1_validator
 
 User = get_user_model()
 
@@ -17,13 +17,12 @@ class Ingredient(models.Model):
     )
     measurement_unit = models.CharField(
         verbose_name='Единица измерения',
-        max_length=constants.MEASUREMENT_UNIT_MAX_LENGTH
+        max_length=constants.INGREDIENT_MEASUREMENT_UNIT_MAX_LENGTH
     )
 
     class Meta:
         verbose_name = 'ингредиент'
         verbose_name_plural = 'Ингредиенты'
-        default_related_name = 'ingredients'
         ordering = ('name',)
         db_table = 'recipes_ingredient'
 
@@ -38,8 +37,7 @@ class Ingredient(models.Model):
 class Tag(models.Model):
     name = models.CharField(
         verbose_name='Название',
-        max_length=constants.TAG_NAME_MAX_LENGTH,
-        unique=True
+        max_length=constants.TAG_NAME_MAX_LENGTH
     )
     slug = models.SlugField(
         verbose_name='Слаг',
@@ -55,11 +53,7 @@ class Tag(models.Model):
         db_table = 'recipes_tag'
 
     def __str__(self):
-        return shorten(
-            self.name,
-            width=constants.OBJECT_NAME_MAX_DISPLAY_LENGTH,
-            placeholder=' ...'
-        )
+        return self.name
 
 
 class Recipe(models.Model):
@@ -77,7 +71,7 @@ class Recipe(models.Model):
         verbose_name='Изображение',
         upload_to='recipe_images'
     )
-    description = models.TextField(
+    text = models.TextField(
         verbose_name='Описание'
     )
     ingredients = models.ManyToManyField(
@@ -92,13 +86,12 @@ class Recipe(models.Model):
     cooking_time = models.PositiveIntegerField(
         verbose_name='Время приготовления',
         help_text='В минутах',
-        validators=(recipe_cooking_time_validator,)
+        validators=(value_ge_1_validator,)
     )
 
     class Meta:
         verbose_name = 'рецепт'
         verbose_name_plural = 'Рецепты'
-        default_related_name = 'recipes'
         ordering = ('name',)
         db_table = 'recipes_recipe'
 
@@ -114,17 +107,18 @@ class RecipeIngredient(models.Model):
     recipe = models.ForeignKey(
         Recipe,
         verbose_name='Рецепт',
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+        related_name='recipe_ingredients'
     )
     ingredient = models.ForeignKey(
         Ingredient,
         verbose_name='Ингредиент',
         on_delete=models.CASCADE,
+        related_name='ingredient_recipes'
     )
-    amount = models.DecimalField(
+    amount = models.IntegerField(
         verbose_name='Количество',
-        max_digits=constants.DECIMAL_MAX_DIGITS,
-        decimal_places=constants.DECIMAL_PLACES
+        validators=(value_ge_1_validator,)
     )
 
     class Meta:
@@ -139,4 +133,4 @@ class RecipeIngredient(models.Model):
         db_table = 'recipes_recipe_ingredients'
 
     def __str__(self):
-        return ''  # Чтобы не отображать избыточную инфу в inline в админке.
+        return f'{self.recipe} - {self.ingredient}'
