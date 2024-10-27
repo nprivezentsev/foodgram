@@ -2,7 +2,18 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.serializers import ValidationError
 
 
-def recipe_ingredients_validator(value):
+def validate_recipe(initial_data, data):
+    errors = {}
+    if 'ingredients' not in initial_data:
+        errors['ingredients'] = 'Обязательное поле.'
+    if 'tags' not in initial_data:
+        errors['tags'] = 'Обязательное поле.'
+    if errors:
+        raise ValidationError(errors)
+    return data
+
+
+def validate_recipe_ingredients(value):
     if not value:
         raise ValidationError(
             'Необходимо указать хотя бы один ингредиент.'
@@ -15,7 +26,7 @@ def recipe_ingredients_validator(value):
     return value
 
 
-def recipe_tags_validator(value):
+def validate_recipe_tags(value):
     if not value:
         raise ValidationError(
             'Необходимо указать хотя бы один тег.'
@@ -28,7 +39,7 @@ def recipe_tags_validator(value):
     return value
 
 
-def recipe_image_validator(value):
+def validate_recipe_image(value):
     if not value:
         raise ValidationError(
             'Значение не должно быть пустым.'
@@ -36,8 +47,8 @@ def recipe_image_validator(value):
     return value
 
 
-def recipe_request_user_validator(request_user, recipe_author):
-    if request_user != recipe_author:
+def validate_recipe_update_user(user, author):
+    if user != author:
         raise PermissionDenied(
             'У вас недостаточно прав для выполнения данного действия.'
         )

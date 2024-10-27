@@ -3,7 +3,14 @@ from textwrap import shorten
 from django.contrib.auth import get_user_model
 from django.db import models
 
-from . import constants
+from .constants import (
+    INGREDIENT_MEASUREMENT_UNIT_MAX_LENGTH,
+    INGREDIENT_NAME_MAX_LENGTH,
+    OBJECT_NAME_MAX_DISPLAY_LENGTH,
+    RECIPE_NAME_MAX_LENGTH,
+    TAG_NAME_MAX_LENGTH,
+    TAG_SLUG_MAX_LENGTH
+)
 from .validators import value_ge_1_validator
 
 User = get_user_model()
@@ -12,12 +19,12 @@ User = get_user_model()
 class Ingredient(models.Model):
     name = models.CharField(
         verbose_name='Название',
-        max_length=constants.INGREDIENT_NAME_MAX_LENGTH,
+        max_length=INGREDIENT_NAME_MAX_LENGTH,
         unique=True
     )
     measurement_unit = models.CharField(
         verbose_name='Единица измерения',
-        max_length=constants.INGREDIENT_MEASUREMENT_UNIT_MAX_LENGTH
+        max_length=INGREDIENT_MEASUREMENT_UNIT_MAX_LENGTH
     )
 
     class Meta:
@@ -29,7 +36,7 @@ class Ingredient(models.Model):
     def __str__(self):
         return shorten(
             self.name,
-            width=constants.OBJECT_NAME_MAX_DISPLAY_LENGTH,
+            width=OBJECT_NAME_MAX_DISPLAY_LENGTH,
             placeholder=' ...'
         )
 
@@ -37,11 +44,11 @@ class Ingredient(models.Model):
 class Tag(models.Model):
     name = models.CharField(
         verbose_name='Название',
-        max_length=constants.TAG_NAME_MAX_LENGTH
+        max_length=TAG_NAME_MAX_LENGTH
     )
     slug = models.SlugField(
         verbose_name='Слаг',
-        max_length=constants.TAG_SLUG_MAX_LENGTH,
+        max_length=TAG_SLUG_MAX_LENGTH,
         unique=True
     )
 
@@ -64,7 +71,7 @@ class Recipe(models.Model):
     )
     name = models.CharField(
         verbose_name='Название',
-        max_length=constants.RECIPE_NAME_MAX_LENGTH,
+        max_length=RECIPE_NAME_MAX_LENGTH,
         unique=True
     )
     image = models.ImageField(
@@ -92,13 +99,14 @@ class Recipe(models.Model):
     class Meta:
         verbose_name = 'рецепт'
         verbose_name_plural = 'Рецепты'
+        default_related_name = 'recipes'
         ordering = ('name',)
         db_table = 'recipes_recipe'
 
     def __str__(self):
         return shorten(
             self.name,
-            width=constants.OBJECT_NAME_MAX_DISPLAY_LENGTH,
+            width=OBJECT_NAME_MAX_DISPLAY_LENGTH,
             placeholder=' ...'
         )
 
@@ -124,13 +132,20 @@ class RecipeIngredient(models.Model):
     class Meta:
         verbose_name = 'Ингредиент в рецепте'
         verbose_name_plural = 'Ингредиенты в рецепте'
-        constraints = (
-            models.UniqueConstraint(
-                fields=('recipe', 'ingredient'),
-                name='uk_recipes_recipe_ingredients'
-            ),
-        )
-        db_table = 'recipes_recipe_ingredients'
+        unique_together = ('recipe', 'ingredient')
+        db_table = 'recipes_recipe_ingredient'
 
     def __str__(self):
-        return f'{self.recipe} - {self.ingredient}'
+        return (
+            shorten(
+                self.recipe,
+                width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
+                placeholder=' ...'
+            )
+            + ' - '
+            + shorten(
+                self.ingredient,
+                width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
+                placeholder=' ...'
+            )
+        )

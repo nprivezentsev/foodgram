@@ -3,28 +3,33 @@ from textwrap import shorten
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
-from . import constants, validators
+from .constants import (
+    OBJECT_NAME_MAX_DISPLAY_LENGTH,
+    USER_EMAIL_MAX_LENGTH,
+    USER_NAME_MAX_LENGTH
+)
+from .validators import user_username_validator
 
 
 class User(AbstractUser):
     email = models.EmailField(
         verbose_name='Email',
-        max_length=constants.USER_EMAIL_MAX_LENGTH,
+        max_length=USER_EMAIL_MAX_LENGTH,
         unique=True,
     )
     username = models.CharField(
         verbose_name='Логин',
-        max_length=constants.USER_NAME_MAX_LENGTH,
+        max_length=USER_NAME_MAX_LENGTH,
         unique=True,
-        validators=(validators.user_username_validator,)
+        validators=(user_username_validator,)
     )
     first_name = models.CharField(
         verbose_name='Имя',
-        max_length=constants.USER_NAME_MAX_LENGTH
+        max_length=USER_NAME_MAX_LENGTH
     )
     last_name = models.CharField(
         verbose_name='Фамилия',
-        max_length=constants.USER_NAME_MAX_LENGTH
+        max_length=USER_NAME_MAX_LENGTH
     )
     avatar = models.ImageField(
         verbose_name='Аватар',
@@ -45,6 +50,42 @@ class User(AbstractUser):
     def __str__(self):
         return shorten(
             self.username,
-            width=constants.OBJECT_NAME_MAX_DISPLAY_LENGTH,
+            width=OBJECT_NAME_MAX_DISPLAY_LENGTH,
             placeholder=' ...'
+        )
+
+
+class Subscription(models.Model):
+    user = models.ForeignKey(
+        User,
+        verbose_name='Подписчик',
+        on_delete=models.CASCADE,
+        related_name='subscriptions'
+    )
+    author = models.ForeignKey(
+        User,
+        verbose_name='Автор',
+        on_delete=models.CASCADE,
+        related_name='subscribers'
+    )
+
+    class Meta:
+        verbose_name = 'Подписка'
+        verbose_name_plural = 'Подписки'
+        unique_together = ('user', 'author')
+        db_table = 'users_subscription'
+
+    def __str__(self):
+        return (
+            shorten(
+                self.user,
+                width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
+                placeholder=' ...'
+            )
+            + ' - '
+            + shorten(
+                self.author,
+                width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
+                placeholder=' ...'
+            )
         )
