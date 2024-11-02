@@ -37,6 +37,12 @@ class User(AbstractUser):
         null=True,
         blank=True
     )
+    subscription_authors = models.ManyToManyField(
+        'self',
+        related_name='subscription_users',
+        symmetrical=False,
+        verbose_name='Подписки на авторов'
+    )
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ('username',)
@@ -52,40 +58,4 @@ class User(AbstractUser):
             self.username,
             width=OBJECT_NAME_MAX_DISPLAY_LENGTH,
             placeholder=' ...'
-        )
-
-
-class Subscription(models.Model):
-    user = models.ForeignKey(
-        User,
-        verbose_name='Подписчик',
-        on_delete=models.CASCADE,
-        related_name='subscriptions'
-    )
-    author = models.ForeignKey(
-        User,
-        verbose_name='Автор',
-        on_delete=models.CASCADE,
-        related_name='subscribers'
-    )
-
-    class Meta:
-        verbose_name = 'Подписка'
-        verbose_name_plural = 'Подписки'
-        unique_together = ('user', 'author')
-        db_table = 'users_subscription'
-
-    def __str__(self):
-        return (
-            shorten(
-                self.user,
-                width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
-                placeholder=' ...'
-            )
-            + ' - '
-            + shorten(
-                self.author,
-                width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
-                placeholder=' ...'
-            )
         )

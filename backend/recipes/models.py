@@ -55,7 +55,6 @@ class Tag(models.Model):
     class Meta:
         verbose_name = 'тег'
         verbose_name_plural = 'Теги'
-        default_related_name = 'tags'
         ordering = ('name',)
         db_table = 'recipes_tag'
 
@@ -95,6 +94,16 @@ class Recipe(models.Model):
         help_text='В минутах',
         validators=(value_ge_1_validator,)
     )
+    shopping_cart_users = models.ManyToManyField(
+        User,
+        related_name='shopping_cart_recipes',
+        verbose_name='В корзине у пользователей'
+    )
+    favorite_users = models.ManyToManyField(
+        User,
+        related_name='favorite_recipes',
+        verbose_name='В избранном у пользователей'
+    )
 
     class Meta:
         verbose_name = 'рецепт'
@@ -131,9 +140,9 @@ class RecipeIngredient(models.Model):
 
     class Meta:
         verbose_name = 'Ингредиент в рецепте'
-        verbose_name_plural = 'Ингредиенты в рецепте'
+        verbose_name_plural = 'Ингредиенты в рецептах'
         unique_together = ('recipe', 'ingredient')
-        db_table = 'recipes_recipe_ingredient'
+        db_table = 'recipes_recipe_ingredients'
 
     def __str__(self):
         return (

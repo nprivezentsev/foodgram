@@ -56,7 +56,7 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Recipe
-        fields = '__all__'
+        exclude = ('shopping_cart_users', 'favorite_users')
 
     def validate(self, data):
         return validate_recipe(self.initial_data, data)
@@ -72,14 +72,23 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         from users.serializers import UserSerializer
+        user = self.context['request'].user
         representation = super().to_representation(instance)
         representation['tags'] = TagSerializer(instance.tags, many=True).data
         representation['author'] = UserSerializer(
             instance.author,
             context={'request': self.context['request']}
         ).data
-        representation['is_favorited'] = False
-        representation['is_in_shopping_cart'] = False
+        if user.is_authenticated:
+            representation['is_favorited'] = (
+                instance.favorite_users.filter(id=user.id).exists()
+            )
+            representation['is_in_shopping_cart'] = (
+                instance.shopping_cart_users.filter(id=user.id).exists()
+            )
+        else:
+            representation['is_favorited'] = False
+            representation['is_in_shopping_cart'] = False
         return representation
 
 

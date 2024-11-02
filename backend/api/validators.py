@@ -1,4 +1,3 @@
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.serializers import ValidationError
 
 
@@ -45,10 +44,3 @@ def validate_recipe_image(value):
             'Значение не должно быть пустым.'
         )
     return value
-
-
-def validate_recipe_update_user(user, author):
-    if user != author:
-        raise PermissionDenied(
-            'У вас недостаточно прав для выполнения данного действия.'
-        )

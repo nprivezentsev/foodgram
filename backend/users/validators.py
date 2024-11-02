@@ -11,14 +11,13 @@ user_username_validator = RegexValidator(
 
 
 def validate_subscription_user(user, author):
-    from .models import Subscription
     if user == author:
         raise ValidationError(
             {'detail': 'Нельзя подписаться на самого себя.'}
         )
-    if Subscription.objects.filter(user=user, author=author).exists():
+    if user.subscription_authors.filter(id=author.id).exists():
         raise ValidationError(
-            {'detail': 'Вы уже подписаны на этого пользователя.'}
+            {'detail': 'Вы уже подписаны на этого автора.'}
         )
 
 
