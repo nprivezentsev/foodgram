@@ -1,15 +1,12 @@
-
 from io import BytesIO
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Prefetch
 from django.http import FileResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django_filters.rest_framework import DjangoFilterBackend
-from reportlab.lib.enums import TA_CENTER
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib import enums, pagesizes, styles
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
@@ -52,7 +49,7 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
-    queryset = Recipe.objects.all().prefetch_related(
+    queryset = Recipe.objects.prefetch_related(
         Prefetch('favorite_users', queryset=User.objects.only('id')),
         Prefetch('shopping_cart_users', queryset=User.objects.only('id'))
     )
@@ -74,11 +71,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
         """Универсальная функция для создания и обновления."""
         ingredients = serializer.validated_data.pop('recipe_ingredients')
         tags = serializer.validated_data.pop('tags')
-        # Создаём или обновляем рецепт (пока без ингредиентов и тегов).
+        # Создание или обновление рецепта (пока без ингредиентов и тегов).
         recipe = serializer.save()
-        # Создаём или обновляем ингредиенты.
-        if recipe.recipe_ingredients.exists():
-            recipe.recipe_ingredients.all().delete()
+        # Создание или обновление ингредиентов.
+        recipe.recipe_ingredients.all().delete()
         RecipeIngredient.objects.bulk_create([
             RecipeIngredient(
                 recipe=recipe,
@@ -86,7 +82,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
                 amount=ingredient['amount']
             ) for ingredient in ingredients
         ])
-        # Создаём или обновляем теги.
+        # Создание или обновление тегов.
         recipe.tags.set(tags)
         return recipe
 
@@ -94,14 +90,14 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def get_short_link(self, request, pk):
         return Response({
             'short-link': request.build_absolute_uri(
-                f'/s/{self.get_object().id}'
+                f'/s/{self.get_object().short_link_code}'
             )
         })
 
     @action(('post',), detail=True, url_path='shopping_cart')
     def add_to_cart(self, request, pk):
         recipe = get_object_or_404(Recipe, pk=pk)
-        if recipe.shopping_cart_users.filter(id=request.user.id).exists():
+        if request.user in recipe.shopping_cart_users.all():
             return Response(status=status.HTTP_400_BAD_REQUEST)
         recipe.shopping_cart_users.add(request.user)
         return Response(
@@ -112,7 +108,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
     @add_to_cart.mapping.delete
     def remove_from_cart(self, request, pk):
         recipe = get_object_or_404(Recipe, pk=pk)
-        if not recipe.shopping_cart_users.filter(id=request.user.id).exists():
+        if request.user not in recipe.shopping_cart_users.all():
             return Response(status=status.HTTP_400_BAD_REQUEST)
         recipe.shopping_cart_users.remove(request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -120,7 +116,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
     @action(('post',), detail=True, url_path='favorite')
     def add_to_favorite(self, request, pk):
         recipe = get_object_or_404(Recipe, pk=pk)
-        if recipe.favorite_users.filter(id=request.user.id).exists():
+        if request.user in recipe.favorite_users.all():
             return Response(status=status.HTTP_400_BAD_REQUEST)
         recipe.favorite_users.add(request.user)
         return Response(
@@ -131,7 +127,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
     @add_to_favorite.mapping.delete
     def remove_from_favorite(self, request, pk):
         recipe = get_object_or_404(Recipe, pk=pk)
-        if not recipe.favorite_users.filter(id=request.user.id).exists():
+        if request.user not in recipe.favorite_users.all():
             return Response(status=status.HTTP_400_BAD_REQUEST)
         recipe.favorite_users.remove(request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -139,7 +135,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
     @action(('get',), detail=False, url_path='download_shopping_cart')
     def download_shopping_cart(self, request):
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        doc = SimpleDocTemplate(buffer, pagesize=pagesizes.letter)
         # Регистрация шрифта.
         pdfmetrics.registerFont(
             TTFont(
@@ -148,51 +144,70 @@ class RecipeViewSet(viewsets.ModelViewSet):
             )
         )
         # Создание стилей для заголовка и текста.
-        header_style = ParagraphStyle(
+        header_style = styles.ParagraphStyle(
             'HeaderStyle',
             fontName='OpenSans',
             fontSize=14,
-            alignment=TA_CENTER,
+            alignment=enums.TA_CENTER,
             spaceAfter=25
         )
-        regular_style = ParagraphStyle(
+        regular_style = styles.ParagraphStyle(
             'RegularStyle',
             fontName='OpenSans',
             fontSize=12,
             spaceAfter=10
         )
-        # Вёрстка документа.
-        header = Paragraph('Список покупок', header_style)
-        elements = [header]
+        # Запрос списка покупок пользователя.
         recipes = Recipe.objects.filter(
-            shopping_cart_users=request.user
+            shopping_cart_users__id=request.user.id
         ).prefetch_related(
             Prefetch(
                 'recipe_ingredients',
                 queryset=RecipeIngredient.objects.select_related('ingredient')
             )
         )
+        # Суммирование количества каждого ингредиента.
+        ingredients_summary = {}
         for recipe in recipes:
-            elements.append(Paragraph(f'{recipe.name}:', regular_style))
-            ingredients = [
-                f'{recipe_ingredient.ingredient.name} '
-                f'({recipe_ingredient.amount} '
-                f'{recipe_ingredient.ingredient.measurement_unit})'
-                for recipe_ingredient in recipe.recipe_ingredients.all()
-            ]
-            bullet_points = ListFlowable(
-                [
-                    ListItem(Paragraph(ingredient, regular_style))
-                    for ingredient in ingredients
-                ],
-                bulletType='bullet'
-            )
-            elements.append(bullet_points)
+            for recipe_ingredient in recipe.recipe_ingredients.all():
+                ingredient_name = recipe_ingredient.ingredient.name
+                measurement_unit = (
+                    recipe_ingredient.ingredient.measurement_unit
+                )
+                if ingredient_name in ingredients_summary:
+                    ingredients_summary[ingredient_name]['total_amount'] += (
+                        recipe_ingredient.amount
+                    )
+                else:
+                    ingredients_summary[ingredient_name] = {
+                        'total_amount': recipe_ingredient.amount,
+                        'measurement_unit': measurement_unit
+                    }
+        # Формиравание заголовка и списка ингредиентов с буллетами.
+        header = Paragraph('Список покупок', header_style)
+        bullet_points = ListFlowable(
+            [
+                ListItem(
+                    Paragraph(
+                        f'{ingredient_name}: {data["total_amount"]} '
+                        f'{data["measurement_unit"]}',
+                        regular_style
+                    )
+                )
+                for ingredient_name, data in ingredients_summary.items()
+            ],
+            bulletType='bullet'
+        )
         # Генерация и возврат PDF.
-        doc.build(elements)
+        doc.build([header, bullet_points])
         buffer.seek(0)
         return FileResponse(
             buffer,
             as_attachment=True,
             filename='shopping_cart.pdf'
         )
+
+
+def redirect_to_recipe(request, code):
+    recipe = get_object_or_404(Recipe, short_link_code=code)
+    return redirect('api:recipes-detail', pk=recipe.id)

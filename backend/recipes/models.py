@@ -8,9 +8,11 @@ from .constants import (
     INGREDIENT_NAME_MAX_LENGTH,
     OBJECT_NAME_MAX_DISPLAY_LENGTH,
     RECIPE_NAME_MAX_LENGTH,
+    RECIPE_SHORT_LINK_CODE_MAX_LENGTH,
     TAG_NAME_MAX_LENGTH,
     TAG_SLUG_MAX_LENGTH
 )
+from .utils import generate_unique_short_link_code
 from .validators import value_ge_1_validator
 
 User = get_user_model()
@@ -87,7 +89,8 @@ class Recipe(models.Model):
     )
     tags = models.ManyToManyField(
         Tag,
-        verbose_name='Теги'
+        verbose_name='Теги',
+        blank=True
     )
     cooking_time = models.PositiveIntegerField(
         verbose_name='Время приготовления',
@@ -96,20 +99,32 @@ class Recipe(models.Model):
     )
     shopping_cart_users = models.ManyToManyField(
         User,
+        verbose_name='В корзине у пользователей',
         related_name='shopping_cart_recipes',
-        verbose_name='В корзине у пользователей'
+        blank=True
     )
     favorite_users = models.ManyToManyField(
         User,
+        verbose_name='В избранном у пользователей',
         related_name='favorite_recipes',
-        verbose_name='В избранном у пользователей'
+        blank=True
+    )
+    short_link_code = models.CharField(
+        verbose_name='Код короткой ссылки',
+        max_length=RECIPE_SHORT_LINK_CODE_MAX_LENGTH,
+        unique=True,
+        default=generate_unique_short_link_code
+    )
+    created_at = models.DateTimeField(
+        verbose_name='Дата и время публикации',
+        auto_now_add=True
     )
 
     class Meta:
         verbose_name = 'рецепт'
         verbose_name_plural = 'Рецепты'
         default_related_name = 'recipes'
-        ordering = ('name',)
+        ordering = ('-created_at',)
         db_table = 'recipes_recipe'
 
     def __str__(self):
@@ -140,20 +155,20 @@ class RecipeIngredient(models.Model):
 
     class Meta:
         verbose_name = 'Ингредиент в рецепте'
-        verbose_name_plural = 'Ингредиенты в рецептах'
+        verbose_name_plural = 'Ингредиенты в рецепте'
         unique_together = ('recipe', 'ingredient')
         db_table = 'recipes_recipe_ingredients'
 
     def __str__(self):
         return (
             shorten(
-                self.recipe,
+                str(self.recipe),
                 width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
                 placeholder=' ...'
             )
             + ' - '
             + shorten(
-                self.ingredient,
+                str(self.ingredient),
                 width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
                 placeholder=' ...'
             )

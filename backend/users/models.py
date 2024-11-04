@@ -39,9 +39,10 @@ class User(AbstractUser):
     )
     subscription_authors = models.ManyToManyField(
         'self',
+        verbose_name='Подписан на авторов',
         related_name='subscription_users',
         symmetrical=False,
-        verbose_name='Подписки на авторов'
+        blank=True
     )
 
     USERNAME_FIELD = 'email'

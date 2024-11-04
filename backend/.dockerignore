@@ -1,0 +1,8 @@
+.dockerignore
+Dockerfile
+venv/
+.env
+.git/
+.vscode/
+db.sqlite3
+media/

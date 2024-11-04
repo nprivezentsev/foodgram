@@ -15,7 +15,7 @@ def validate_subscription_user(user, author):
         raise ValidationError(
             {'detail': 'Нельзя подписаться на самого себя.'}
         )
-    if user.subscription_authors.filter(id=author.id).exists():
+    if author in user.subscription_authors.all():
         raise ValidationError(
             {'detail': 'Вы уже подписаны на этого автора.'}
         )

@@ -17,8 +17,9 @@ User = get_user_model()
 
 
 class UserViewSet(DjoserUserViewSet):
-    queryset = User.objects.all().prefetch_related(
-        Prefetch('subscription_users', queryset=User.objects.only('id'))
+    queryset = User.objects.prefetch_related(
+        Prefetch('subscription_users', queryset=User.objects.only('id')),
+        Prefetch('subscription_authors', queryset=User.objects.only('id'))
     )
 
     def get_permissions(self):
@@ -39,8 +40,7 @@ class UserViewSet(DjoserUserViewSet):
 
     @update_avatar.mapping.delete
     def delete_avatar(self, request):
-        if request.user.avatar:
-            request.user.avatar.delete()
+        request.user.avatar.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(('post',), detail=True, url_path='subscribe')
@@ -70,7 +70,7 @@ class UserViewSet(DjoserUserViewSet):
     @add_subscription.mapping.delete
     def remove_subscription(self, request, id):  # noqa: A002
         author = get_object_or_404(User, id=id)
-        if request.user.subscription_authors.filter(id=author.id).exists():
+        if author in request.user.subscription_authors.all():
             request.user.subscription_authors.remove(author)
             return Response(status=status.HTTP_204_NO_CONTENT)
         return Response(status=status.HTTP_400_BAD_REQUEST)

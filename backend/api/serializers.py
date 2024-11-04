@@ -56,7 +56,12 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Recipe
-        exclude = ('shopping_cart_users', 'favorite_users')
+        exclude = (
+            'shopping_cart_users',
+            'favorite_users',
+            'short_link_code',
+            'created_at'
+        )
 
     def validate(self, data):
         return validate_recipe(self.initial_data, data)
@@ -81,10 +86,10 @@ class RecipeSerializer(serializers.ModelSerializer):
         ).data
         if user.is_authenticated:
             representation['is_favorited'] = (
-                instance.favorite_users.filter(id=user.id).exists()
+                user in instance.favorite_users.all()
             )
             representation['is_in_shopping_cart'] = (
-                instance.shopping_cart_users.filter(id=user.id).exists()
+                user in instance.shopping_cart_users.all()
             )
         else:
             representation['is_favorited'] = False

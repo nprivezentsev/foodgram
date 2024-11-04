@@ -19,10 +19,10 @@ class RecipeAdmin(admin.ModelAdmin):
         'author__email'
     )
     list_filter = ('tags',)
-    readonly_fields = ('author',)
+    readonly_fields = ('author', 'short_link_code', 'created_at')
     filter_horizontal = ('tags',)
     inlines = (RecipeIngredientInline,)
-    ordering = ('name',)
+    ordering = ('-created_at',)
 
 
 @admin.register(Ingredient)
