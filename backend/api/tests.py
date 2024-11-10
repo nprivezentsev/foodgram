@@ -10,5 +10,5 @@ class FoodgramAPITestCase(TestCase):
 
     def test_list_exists(self):
         """Проверка доступности списка рецептов."""
-        response = self.guest_client.get('/recipes/')
+        response = self.guest_client.get('/api/recipes/')
         self.assertEqual(response.status_code, HTTPStatus.OK)
