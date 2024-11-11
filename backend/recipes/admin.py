@@ -24,6 +24,11 @@ class RecipeAdmin(admin.ModelAdmin):
     inlines = (RecipeIngredientInline,)
     ordering = ('-created_at',)
 
+    def save_model(self, request, obj, form, change):
+        if not hasattr(obj, 'author'):
+            obj.author = request.user
+        super().save_model(request, obj, form, change)
+
 
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
