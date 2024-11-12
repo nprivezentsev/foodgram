@@ -5,5 +5,4 @@ COPY package*.json ./
 RUN npm install
 COPY . ./
 RUN npm run build
-RUN chmod -R a+r build
-CMD cp -r build result_build
+CMD cp -r build result_build && chmod -R a+r result_build

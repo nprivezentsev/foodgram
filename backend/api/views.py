@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Prefetch
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
 from django_filters.rest_framework import DjangoFilterBackend
 from reportlab.lib import enums, pagesizes, styles
 from reportlab.pdfbase import pdfmetrics
@@ -189,7 +190,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             [
                 ListItem(
                     Paragraph(
-                        f'{ingredient_name}: {data["total_amount"]} '
+                        f'{ingredient_name} — {data["total_amount"]} '
                         f'{data["measurement_unit"]}',
                         regular_style
                     )
@@ -210,4 +211,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
 def redirect_to_recipe(request, code):
     recipe = get_object_or_404(Recipe, short_link_code=code)
-    return redirect('api:recipes-detail', pk=recipe.id)
+    return redirect(
+        reverse(
+            'api:recipes-detail',
+            kwargs={'pk': recipe.id}
+        ).replace('/api', '')
+    )
