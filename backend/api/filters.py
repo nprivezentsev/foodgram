@@ -13,26 +13,35 @@ class IngredientFilter(filters.FilterSet):
 
 class RecipeFilter(filters.FilterSet):
     is_in_shopping_cart = filters.BooleanFilter(
-        method='filter_is_in_shopping_cart'
+        method='filter_by_is_in_shopping_cart'
     )
     is_favorited = filters.BooleanFilter(
-        method='filter_is_favorited'
+        method='filter_by_is_favorited'
+    )
+    tags = filters.CharFilter(
+        method='filter_by_tags'
     )
 
     class Meta:
         model = Recipe
         fields = ('author', 'tags')
 
-    def filter_is_in_shopping_cart(self, queryset, name, value):
+    def filter_by_is_in_shopping_cart(self, queryset, name, value):
         if value and self.request.user.is_authenticated:
             return queryset.filter(
                 shopping_cart_users__id=self.request.user.id
             )
         return queryset
 
-    def filter_is_favorited(self, queryset, name, value):
+    def filter_by_is_favorited(self, queryset, name, value):
         if value and self.request.user.is_authenticated:
             return queryset.filter(
                 favorite_users__id=self.request.user.id
             )
+        return queryset
+
+    def filter_by_tags(self, queryset, name, value):
+        tag_slugs = self.request.query_params.getlist('tags')
+        if tag_slugs:
+            return queryset.filter(tags__slug__in=tag_slugs).distinct()
         return queryset
