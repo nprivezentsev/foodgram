@@ -21,8 +21,7 @@ User = get_user_model()
 class Ingredient(models.Model):
     name = models.CharField(
         verbose_name='Название',
-        max_length=INGREDIENT_NAME_MAX_LENGTH,
-        unique=True
+        max_length=INGREDIENT_NAME_MAX_LENGTH
     )
     measurement_unit = models.CharField(
         verbose_name='Единица измерения',
@@ -33,6 +32,7 @@ class Ingredient(models.Model):
         verbose_name = 'ингредиент'
         verbose_name_plural = 'Ингредиенты'
         ordering = ('name',)
+        unique_together = ('name', 'measurement_unit')
         db_table = 'recipes_ingredient'
 
     def __str__(self):
@@ -92,7 +92,7 @@ class Recipe(models.Model):
         verbose_name='Теги',
         blank=True
     )
-    cooking_time = models.PositiveIntegerField(
+    cooking_time = models.PositiveSmallIntegerField(
         verbose_name='Время приготовления',
         help_text='В минутах',
         validators=(value_ge_1_validator,)

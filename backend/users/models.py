@@ -34,7 +34,6 @@ class User(AbstractUser):
     avatar = models.ImageField(
         verbose_name='Аватар',
         upload_to='users/avatars/',
-        null=True,
         blank=True
     )
     subscription_authors = models.ManyToManyField(
@@ -42,7 +41,8 @@ class User(AbstractUser):
         verbose_name='Подписан на авторов',
         related_name='subscription_users',
         symmetrical=False,
-        blank=True
+        blank=True,
+        through='Subscription'
     )
 
     USERNAME_FIELD = 'email'
@@ -59,4 +59,46 @@ class User(AbstractUser):
             self.username,
             width=OBJECT_NAME_MAX_DISPLAY_LENGTH,
             placeholder=' ...'
+        )
+
+
+class Subscription(models.Model):
+    user = models.ForeignKey(
+        User,
+        verbose_name='Пользователь',
+        on_delete=models.CASCADE,
+        related_name='subscriptions'
+    )
+    author = models.ForeignKey(
+        User,
+        verbose_name='Автор',
+        on_delete=models.CASCADE,
+        related_name='subscribers'
+    )
+
+    class Meta:
+        verbose_name = 'Подписка'
+        verbose_name_plural = 'Подписки'
+        unique_together = ('user', 'author')
+        constraints = [
+            models.CheckConstraint(
+                check=~models.Q(user=models.F('author')),
+                name='chk_users_subscription_prevent_self_subscription'
+            )
+        ]
+        db_table = 'users_subscription'
+
+    def __str__(self):
+        return (
+            shorten(
+                str(self.user),
+                width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
+                placeholder=' ...'
+            )
+            + ' подписан на '
+            + shorten(
+                str(self.author),
+                width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
+                placeholder=' ...'
+            )
         )
