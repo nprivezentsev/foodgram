@@ -1,6 +1,5 @@
 from textwrap import shorten
 
-from django.contrib.auth import get_user_model
 from django.db import models
 
 from .constants import (
@@ -12,10 +11,8 @@ from .constants import (
     TAG_NAME_MAX_LENGTH,
     TAG_SLUG_MAX_LENGTH
 )
-from .utils import generate_unique_short_link_code
+from .utils import generate_unique_short_link_code, make_relation_name
 from .validators import value_ge_1_validator
-
-User = get_user_model()
 
 
 class Ingredient(models.Model):
@@ -66,7 +63,7 @@ class Tag(models.Model):
 
 class Recipe(models.Model):
     author = models.ForeignKey(
-        User,
+        'users.User',
         verbose_name='Автор',
         on_delete=models.CASCADE
     )
@@ -96,18 +93,6 @@ class Recipe(models.Model):
         verbose_name='Время приготовления',
         help_text='В минутах',
         validators=(value_ge_1_validator,)
-    )
-    shopping_cart_users = models.ManyToManyField(
-        User,
-        verbose_name='В корзине у пользователей',
-        related_name='shopping_cart_recipes',
-        blank=True
-    )
-    favorite_users = models.ManyToManyField(
-        User,
-        verbose_name='В избранном у пользователей',
-        related_name='favorite_recipes',
-        blank=True
     )
     short_link_code = models.CharField(
         verbose_name='Код короткой ссылки',
@@ -160,16 +145,4 @@ class RecipeIngredient(models.Model):
         db_table = 'recipes_recipe_ingredients'
 
     def __str__(self):
-        return (
-            shorten(
-                str(self.recipe),
-                width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
-                placeholder=' ...'
-            )
-            + ' - '
-            + shorten(
-                str(self.ingredient),
-                width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
-                placeholder=' ...'
-            )
-        )
+        return make_relation_name(self.recipe, self.ingredient)

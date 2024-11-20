@@ -57,8 +57,6 @@ class RecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         exclude = (
-            'shopping_cart_users',
-            'favorite_users',
             'short_link_code',
             'created_at'
         )

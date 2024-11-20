@@ -1,6 +1,10 @@
 import secrets
+from textwrap import shorten
 
-from .constants import RECIPE_SHORT_LINK_CODE_MAX_LENGTH
+from .constants import (
+    OBJECT_NAME_MAX_DISPLAY_LENGTH,
+    RECIPE_SHORT_LINK_CODE_MAX_LENGTH
+)
 
 
 def generate_unique_short_link_code():
@@ -13,3 +17,19 @@ def generate_unique_short_link_code():
         )
         if not Recipe.objects.filter(short_link_code=random_code).exists():
             return random_code
+
+
+def make_relation_name(obj_1, obj_2):
+    return (
+        shorten(
+            str(obj_1),
+            width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
+            placeholder=' ...'
+        )
+        + ' - '
+        + shorten(
+            str(obj_2),
+            width=OBJECT_NAME_MAX_DISPLAY_LENGTH // 2,
+            placeholder=' ...'
+        )
+    )

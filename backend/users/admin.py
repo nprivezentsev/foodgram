@@ -2,7 +2,7 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import Subscription, User
+from .models import Favorite, ShoppingCart, Subscription, User
 
 
 class SubscriptionForm(forms.ModelForm):
@@ -23,6 +23,22 @@ class SubscriptionInline(admin.TabularInline):
     extra = 0
     verbose_name = 'объект "Подписка"'
     verbose_name_plural = 'Подписки'
+
+
+class FavoriteInline(admin.TabularInline):
+    model = Favorite
+    fk_name = 'user'
+    extra = 0
+    verbose_name = 'Избранный рецепт'
+    verbose_name_plural = 'Избранные рецепты'
+
+
+class ShoppingCartInline(admin.TabularInline):
+    model = ShoppingCart
+    fk_name = 'user'
+    extra = 0
+    verbose_name = 'Рецепт в корзине'
+    verbose_name_plural = 'Рецепты в корзине'
 
 
 @admin.register(User)
@@ -49,5 +65,5 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('avatar',)
         }),
     )
-    inlines = (SubscriptionInline,)
+    inlines = (SubscriptionInline, FavoriteInline, ShoppingCartInline)
     ordering = ('username',)
