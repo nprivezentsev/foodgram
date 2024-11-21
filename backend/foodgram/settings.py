@@ -106,6 +106,7 @@ USE_L10N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static_source/']
 STATIC_ROOT = BASE_DIR / 'static/static/'
 
 MEDIA_URL = '/media/'
@@ -119,12 +120,11 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.TokenAuthentication',
     ),
-    'DEFAULT_PAGINATION_CLASS': 'foodgram.pagination.PageNumberPagination'
+    'DEFAULT_PAGINATION_CLASS': 'api.pagination.PageNumberPagination'
 }
 
 DJOSER = {
     'SERIALIZERS': {
-        'user_create': 'users.serializers.UserCreateSerializer',
         'user': 'users.serializers.UserSerializer',
         'current_user': 'users.serializers.UserSerializer',
     },

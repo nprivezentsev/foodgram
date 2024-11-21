@@ -13,34 +13,36 @@ class IngredientFilter(filters.FilterSet):
 
 class RecipeFilter(filters.FilterSet):
     is_in_shopping_cart = filters.BooleanFilter(
-        method='filter_by_is_in_shopping_cart'
+        method='is_in_shopping_cart_filter'
     )
     is_favorited = filters.BooleanFilter(
-        method='filter_by_is_favorited'
+        method='is_favorited_filter'
     )
     tags = filters.CharFilter(
-        method='filter_by_tags'
+        method='tags_filter'
     )
 
     class Meta:
         model = Recipe
-        fields = ('author', 'tags')
+        fields = ('author',)
 
-    def filter_by_is_in_shopping_cart(self, queryset, name, value):
+    # Тут и далее к названию метода добавлен постфикс _filter, чтобы оно не
+    # совпадало с названием атрибута (иначе как-то криво работает).
+    def is_in_shopping_cart_filter(self, queryset, name, value):
         if value and self.request.user.is_authenticated:
             return queryset.filter(
-                shopping_cart_users__id=self.request.user.id
+                shoppingcart_users__user=self.request.user
             )
         return queryset
 
-    def filter_by_is_favorited(self, queryset, name, value):
+    def is_favorited_filter(self, queryset, name, value):
         if value and self.request.user.is_authenticated:
             return queryset.filter(
-                favorite_users__id=self.request.user.id
+                favorite_users__user=self.request.user
             )
         return queryset
 
-    def filter_by_tags(self, queryset, name, value):
+    def tags_filter(self, queryset, name, value):
         tag_slugs = self.request.query_params.getlist('tags')
         if tag_slugs:
             return queryset.filter(tags__slug__in=tag_slugs).distinct()

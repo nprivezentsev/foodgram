@@ -1,7 +1,7 @@
 import secrets
 from textwrap import shorten
 
-from .constants import (
+from foodgram.constants import (
     OBJECT_NAME_MAX_DISPLAY_LENGTH,
     RECIPE_SHORT_LINK_CODE_MAX_LENGTH
 )

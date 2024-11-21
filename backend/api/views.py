@@ -2,7 +2,7 @@ from io import BytesIO
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db.models import Prefetch
+from django.db.models import Sum
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
@@ -21,14 +21,25 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-from recipes.models import Ingredient, Recipe, RecipeIngredient, Tag
+from recipes.models import (
+    Favorite,
+    Ingredient,
+    Recipe,
+    RecipeIngredient,
+    ShoppingCart,
+    Tag
+)
+from recipes.utils import generate_unique_short_link_code
 
 from .filters import IngredientFilter, RecipeFilter
 from .permissions import IsAuthorOrReadOnly
 from .serializers import (
+    FavoriteSerializer,
     IngredientSerializer,
-    RecipeSerializer,
-    RecipeShortSerializer,
+    RecipeReadSerializer,
+    RecipeShortReadSerializer,
+    RecipeWriteSerializer,
+    ShoppingCartSerializer,
     TagSerializer
 )
 
@@ -50,11 +61,7 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
-    queryset = Recipe.objects.prefetch_related(
-        Prefetch('favorite_users', queryset=User.objects.only('id')),
-        Prefetch('shopping_cart_users', queryset=User.objects.only('id'))
-    )
-    serializer_class = RecipeSerializer
+    queryset = Recipe.objects.all()
     permission_classes = (IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly)
     http_method_names = (
         'post', 'patch', 'get', 'delete', 'head', 'options'
@@ -62,76 +69,65 @@ class RecipeViewSet(viewsets.ModelViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilter
 
-    def perform_create(self, serializer):
-        self.save_recipe(serializer)
+    def get_serializer_class(self):
+        if self.action in ('list', 'retrieve'):
+            return RecipeReadSerializer
+        return RecipeWriteSerializer
 
-    def perform_update(self, serializer):
-        self.save_recipe(serializer)
+    def add_to(self, request, pk, serializer_class, model_class):
+        recipe = get_object_or_404(Recipe, pk=pk)
+        serializer = serializer_class(
+            data={'recipe': recipe.id}, context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            RecipeShortReadSerializer(
+                recipe, context={'request': request}
+            ).data,
+            status=status.HTTP_201_CREATED
+        )
 
-    def save_recipe(self, serializer):
-        """Универсальная функция для создания и обновления."""
-        ingredients = serializer.validated_data.pop('recipe_ingredients')
-        tags = serializer.validated_data.pop('tags')
-        # Создание или обновление рецепта (пока без ингредиентов и тегов).
-        recipe = serializer.save()
-        # Создание или обновление ингредиентов.
-        recipe.recipe_ingredients.all().delete()
-        RecipeIngredient.objects.bulk_create([
-            RecipeIngredient(
-                recipe=recipe,
-                ingredient=ingredient['ingredient'],
-                amount=ingredient['amount']
-            ) for ingredient in ingredients
-        ])
-        # Создание или обновление тегов.
-        recipe.tags.set(tags)
-        return recipe
+    def remove_from(self, request, pk, model_class):
+        recipe = get_object_or_404(Recipe, pk=pk)
+        model_object = model_class.objects.filter(
+            user=request.user,
+            recipe=recipe
+        )
+        if model_object:
+            model_object.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
 
     @action(('get',), detail=True, url_path='get-link')
     def get_short_link(self, request, pk):
+        recipe = self.get_object()
+        if not recipe.short_link_code:
+            recipe.short_link_code = generate_unique_short_link_code()
+            recipe.save(update_fields=('short_link_code',))
         return Response({
             'short-link': request.build_absolute_uri(
-                f'/s/{self.get_object().short_link_code}'
+                f'/s/{recipe.short_link_code}'
             )
         })
 
     @action(('post',), detail=True, url_path='shopping_cart')
     def add_to_cart(self, request, pk):
-        recipe = get_object_or_404(Recipe, pk=pk)
-        if request.user in recipe.shopping_cart_users.all():
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        recipe.shopping_cart_users.add(request.user)
-        return Response(
-            RecipeShortSerializer(recipe).data,
-            status=status.HTTP_201_CREATED
+        return self.add_to(
+            request, pk, ShoppingCartSerializer, ShoppingCart
         )
 
     @add_to_cart.mapping.delete
     def remove_from_cart(self, request, pk):
-        recipe = get_object_or_404(Recipe, pk=pk)
-        if request.user not in recipe.shopping_cart_users.all():
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        recipe.shopping_cart_users.remove(request.user)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return self.remove_from(request, pk, ShoppingCart)
 
     @action(('post',), detail=True, url_path='favorite')
     def add_to_favorite(self, request, pk):
-        recipe = get_object_or_404(Recipe, pk=pk)
-        if request.user in recipe.favorite_users.all():
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        recipe.favorite_users.add(request.user)
-        return Response(
-            RecipeShortSerializer(recipe).data,
-            status=status.HTTP_201_CREATED
-        )
+        return self.add_to(request, pk, FavoriteSerializer, Favorite)
 
     @add_to_favorite.mapping.delete
     def remove_from_favorite(self, request, pk):
-        recipe = get_object_or_404(Recipe, pk=pk)
-        if request.user not in recipe.favorite_users.all():
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        recipe.favorite_users.remove(request.user)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return self.remove_from(request, pk, Favorite)
 
     @action(('get',), detail=False, url_path='download_shopping_cart')
     def download_shopping_cart(self, request):
@@ -159,43 +155,29 @@ class RecipeViewSet(viewsets.ModelViewSet):
             spaceAfter=10
         )
         # Запрос списка покупок пользователя.
-        recipes = Recipe.objects.filter(
-            shopping_cart_users__id=request.user.id
-        ).prefetch_related(
-            Prefetch(
-                'recipe_ingredients',
-                queryset=RecipeIngredient.objects.select_related('ingredient')
+        ingredients_summary = (
+            RecipeIngredient.objects.filter(
+                recipe__shoppingcart_users__user=request.user
+            ).values(
+                'ingredient__name', 'ingredient__measurement_unit'
+            ).annotate(
+                total_amount=Sum('amount')
+            ).order_by(
+                'ingredient__name'
             )
         )
-        # Суммирование количества каждого ингредиента.
-        ingredients_summary = {}
-        for recipe in recipes:
-            for recipe_ingredient in recipe.recipe_ingredients.all():
-                ingredient_name = recipe_ingredient.ingredient.name
-                measurement_unit = (
-                    recipe_ingredient.ingredient.measurement_unit
-                )
-                if ingredient_name in ingredients_summary:
-                    ingredients_summary[ingredient_name]['total_amount'] += (
-                        recipe_ingredient.amount
-                    )
-                else:
-                    ingredients_summary[ingredient_name] = {
-                        'total_amount': recipe_ingredient.amount,
-                        'measurement_unit': measurement_unit
-                    }
-        # Формиравание заголовка и списка ингредиентов с буллетами.
+        # Формирование заголовка и списка ингредиентов с буллетами.
         header = Paragraph('Список покупок', header_style)
         bullet_points = ListFlowable(
             [
                 ListItem(
                     Paragraph(
-                        f'{ingredient_name} — {data["total_amount"]} '
-                        f'{data["measurement_unit"]}',
+                        f'{item["ingredient__name"]} — {item["total_amount"]} '
+                        f'{item["ingredient__measurement_unit"]}',
                         regular_style
                     )
                 )
-                for ingredient_name, data in ingredients_summary.items()
+                for item in ingredients_summary
             ],
             bulletType='bullet'
         )
@@ -209,7 +191,15 @@ class RecipeViewSet(viewsets.ModelViewSet):
         )
 
 
-def redirect_to_recipe(request, code):
+def redirect_to_recipe_detail(request, code):
+    """
+    Перенаправляет пользователя на детальную страницу рецепта по короткому
+    коду. Короткий код (short_link_code) позволяет создавать компактные ссылки
+    (например, https://example.com/s/abc123), которые можно использовать в
+    email-рассылках, социальных сетях или других местах. После перехода по
+    такой ссылке в юай происходит перенаправление на стандартный эндпоинт
+    детального описания рецепта.
+    """
     recipe = get_object_or_404(Recipe, short_link_code=code)
     return redirect(
         reverse(

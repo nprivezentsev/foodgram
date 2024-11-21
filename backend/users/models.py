@@ -1,9 +1,9 @@
 from textwrap import shorten
 
 from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db import models
 
-from recipes.models import Recipe
 from recipes.utils import make_relation_name
 
 from .constants import (
@@ -11,10 +11,12 @@ from .constants import (
     USER_EMAIL_MAX_LENGTH,
     USER_NAME_MAX_LENGTH
 )
-from .validators import user_username_validator
 
 
 class User(AbstractUser):
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ('username', 'first_name', 'last_name')
+
     email = models.EmailField(
         verbose_name='Email',
         max_length=USER_EMAIL_MAX_LENGTH,
@@ -24,7 +26,7 @@ class User(AbstractUser):
         verbose_name='Логин',
         max_length=USER_NAME_MAX_LENGTH,
         unique=True,
-        validators=(user_username_validator,)
+        validators=(UnicodeUsernameValidator(),)
     )
     first_name = models.CharField(
         verbose_name='Имя',
@@ -37,36 +39,12 @@ class User(AbstractUser):
     avatar = models.ImageField(
         verbose_name='Аватар',
         upload_to='users/avatars/',
-        blank=True
-    )
-    subscription_authors = models.ManyToManyField(
-        'self',
-        verbose_name='Подписан на авторов',
-        related_name='subscription_users',
-        symmetrical=False,
         blank=True,
-        through='Subscription'
+        default=''
     )
-    favorite_recipes = models.ManyToManyField(
-        Recipe,
-        verbose_name='Избранные рецепты',
-        related_name='favorite_users',
-        blank=True,
-        through='Favorite'
-    )
-    shopping_cart_recipes = models.ManyToManyField(
-        Recipe,
-        verbose_name='Рецепты в корзине',
-        related_name='shopping_cart_users',
-        blank=True,
-        through='ShoppingCart'
-    )
-
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ('username',)
 
     class Meta:
-        verbose_name = 'Пользователь'
+        verbose_name = 'Объект "Пользователь"'
         verbose_name_plural = 'Пользователи'
         ordering = ('username',)
         db_table = 'users_user'
@@ -84,70 +62,30 @@ class Subscription(models.Model):
         User,
         verbose_name='Пользователь',
         on_delete=models.CASCADE,
-        related_name='subscriptions'
+        related_name='subscription_authors'
     )
     author = models.ForeignKey(
         User,
         verbose_name='Автор',
         on_delete=models.CASCADE,
-        related_name='subscribers'
+        related_name='subscription_users'
     )
 
     class Meta:
-        verbose_name = 'Подписка'
+        verbose_name = 'Объект "Подписка"'
         verbose_name_plural = 'Подписки'
-        unique_together = ('user', 'author')
-        constraints = [
+        constraints = (
+            models.UniqueConstraint(
+                fields=('user', 'author'),
+                name='uq_users_subscriptions'
+            ),
             models.CheckConstraint(
                 check=~models.Q(user=models.F('author')),
-                name='chk_users_subscription_prevent_self_subscription'
+                name='chk_users_subscriptions_prevent_self_subscription'
             )
-        ]
+        )
+        ordering = ('user__username', 'author__username')
         db_table = 'users_subscriptions'
 
     def __str__(self):
         return make_relation_name(self.user, self.author)
-
-
-class Favorite(models.Model):
-    user = models.ForeignKey(
-        User,
-        verbose_name='Пользователь',
-        on_delete=models.CASCADE
-    )
-    recipe = models.ForeignKey(
-        Recipe,
-        verbose_name='Рецепт',
-        on_delete=models.CASCADE
-    )
-
-    class Meta:
-        verbose_name = 'Избранный рецепт'
-        verbose_name_plural = 'Избранные рецепты'
-        unique_together = ('user', 'recipe')
-        db_table = 'users_favorites'
-
-    def __str__(self):
-        return make_relation_name(self.user, self.recipe)
-
-
-class ShoppingCart(models.Model):
-    user = models.ForeignKey(
-        User,
-        verbose_name='Пользователь',
-        on_delete=models.CASCADE
-    )
-    recipe = models.ForeignKey(
-        Recipe,
-        verbose_name='Рецепт',
-        on_delete=models.CASCADE
-    )
-
-    class Meta:
-        verbose_name = 'Рецепт в корзине'
-        verbose_name_plural = 'Рецепты в корзине'
-        unique_together = ('user', 'recipe')
-        db_table = 'users_shopping_carts'
-
-    def __str__(self):
-        return make_relation_name(self.user, self.recipe)
